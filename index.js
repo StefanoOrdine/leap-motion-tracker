@@ -2,6 +2,21 @@ const Leap = require('leapjs');
 const glMatrix = require('gl-matrix');
 const { Controller } = Leap;
 
+Leap.plugin('fingersAngles', () => {
+  return {
+    hand: hand => {
+      hand.fingersAngles = hand.fingers
+        .map(({ type, metacarpal, proximal, medial, distal }) => {
+          const alpha = angle(metacarpal.direction(), proximal.direction());
+          const beta = angle(proximal.direction(), medial.direction());
+          const gamma = angle(medial.direction(), distal.direction());
+
+          return { type, alpha, beta, gamma };
+        });
+    }
+  };
+});
+
 const controllerOptions = {
   host: '127.0.0.1',
   port: 6437,
@@ -10,30 +25,33 @@ const controllerOptions = {
   useAllPlugins: false
 };
 
-const printFingersAngles = (matrix) => {
-  console.log('| finger | alpha | beta | gamma |');
-  matrix.forEach(({ type, alpha, beta, gamma }) => {
-    console.log(`| ${type} | ${alpha} | ${beta} | ${gamma} |`);
+const FINGER_NAMES = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+
+const angle = (v1, v2) => ((Math.PI - glMatrix.vec3.angle(v1, v2)).toPrecision(2));
+
+const degrees = angle => ((angle * 180 / Math.PI).toPrecision(3));
+const printFingersDegreesAnglesMatrix = (handId, angleMatrix = []) => {
+  console.log(`${handId}\t|  α\t|  β\t|  γ\t`);
+  angleMatrix.forEach(({ type, alpha, beta, gamma }) => {
+    console.log(
+      `${FINGER_NAMES[type]}\t| ${degrees(alpha)}°\t| ${degrees(beta)}°\t| ${degrees(gamma)}° `
+    );
   })
+  console.log('-----------------------------');
 }
 
-const FINGER_NAMES = ['THUMB', 'INDEX', 'MIDDLE', 'RING', 'PINKY'];
+const anglesMatrix = () => {
+  const { hands } = controller.frame();
+  const matrix = hands.map(({ id, fingersAngles }) => ({ id, fingersAngles }));
 
-const calculateAngle = (v1, v2) => (glMatrix.vec3.angle(v1, v2) * 180 / Math.PI).toPrecision(2);
+  matrix.forEach(({ id, fingersAngles }) => printFingersDegreesAnglesMatrix(id, fingersAngles));
 
-const sampleAngles = () => {
-  const { fingers } = controller.frame();
-  const samples = fingers
-    .map(({ metacarpal, proximal, medial, distal, type }) => {
-      const alpha = calculateAngle(metacarpal.direction(), proximal.direction());
-      const beta = calculateAngle(proximal.direction(), medial.direction());
-      const gamma = calculateAngle(medial.direction(), distal.direction());
-      return { type, alpha, beta, gamma };
-    });
-  printFingersAngles(samples);
-  return samples
+  return matrix;
 }
+
+const enqueueHandStatus = anglesMatrix;
 
 const controller = new Controller(controllerOptions)
-  .on('connect', () => { setInterval(sampleAngles, 500); })
+  .use('fingersAngles')
+  .on('connect', () => { setInterval(enqueueHandStatus, 500); })
   .connect();

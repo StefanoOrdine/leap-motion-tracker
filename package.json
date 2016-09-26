@@ -11,6 +11,7 @@
   "license": "MIT",
   "dependencies": {
     "gl-matrix": "^2.3.2",
-    "leapjs": "^0.6.4"
+    "leapjs": "^0.6.4",
+    "leapjs-plugins": "^0.1.11"
   }
 }
